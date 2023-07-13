@@ -1,5 +1,6 @@
 from django.shortcuts import render,redirect
 from rest_framework.decorators import action
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from .models import *
@@ -7,6 +8,7 @@ from .serializers import *
 from rest_framework import status, filters
 from rest_framework.viewsets import ModelViewSet
 from django.contrib.postgres.search import TrigramSimilarity
+from rest_framework_simplejwt.authentication import JWTAuthentication
 
 
 
@@ -28,6 +30,7 @@ class HelloView(APIView):
         return Response(d)
 
 class AktyorlarAPIView(APIView):
+    serializer_class = AktyorSerializer
     def get(self,request):
         soz = request.query_params.get('qidiruv')
         if soz:
@@ -68,26 +71,49 @@ class AktyorDetail(APIView):
 #         serializer = AktyorSerializer(aktyor)
 #         return Response(serializer.data)
 
+class IzohModelViewSet(ModelViewSet):
+    queryset = Izoh.objects.all()
+    serializer_class = IzohlarSerializer
+    authentication_classes = [JWTAuthentication]
+    permission_classes = [IsAuthenticated]
 
-class IzohlarAPIView(APIView):
-    def get(self,request):
-        izohlar = Izoh.objects.all()
-        serializer = IzohlarSerializer(izohlar,many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+    def get_queryset(self):
+        queryset = Izoh.objects.filter(user=self.request.user)
+        return queryset
 
-    def post(self,request):
-        izoh = request.data
-        serializer = IzohSaveSerializer(data=izoh)
+    def destroy(self, request, *args, **kwargs):
+        obyekt = self.get_object()
+        if obyekt.user == self.request.user:
+            obyekt.delete()
+            return Response(status=status.HTTP_204_NO_CONTENT)
+        return Response(status=status.HTTP_400_BAD_REQUEST)
+
+    def create(self, request, *args, **kwargs):
+        serializer = IzohlarSerializer(data=request.data)
         if serializer.is_valid():
-            serializer.save()
+            serializer.save(user=request.user)
             return Response(serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-class IzohDetail(APIView):
-    def get(self,request,pk):
-        izoh = Izoh.objects.get(id=pk)
-        serializer = IzohlarSerializer(izoh)
-        return Response(serializer.data,status=status.HTTP_200_OK)
+# class IzohlarAPIView(APIView):
+#     def get(self,request):
+#         izohlar = Izoh.objects.all()
+#         serializer = IzohlarSerializer(izohlar,many=True)
+#         return Response(serializer.data, status=status.HTTP_200_OK)
+#
+#     def post(self,request):
+#         izoh = request.data
+#         serializer = IzohSaveSerializer(data=izoh)
+#         if serializer.is_valid():
+#             serializer.save()
+#             return Response(serializer.data, status=status.HTTP_201_CREATED)
+#         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+#
+# class IzohDetail(APIView):
+#     def get(self,request,pk):
+#         izoh = Izoh.objects.get(id=pk)
+#         serializer = IzohlarSerializer(izoh)
+#         return Response(serializer.data,status=status.HTTP_200_OK)
 
 
 class KinolarAPIView(APIView):
@@ -169,6 +195,9 @@ class AktyorModelViewSet(ModelViewSet):
     filter_backends = [filters.SearchFilter, filters.OrderingFilter]
     search_fields = ['ism','sharif','davlat']
     ordering_fields = ['ism']
+
+
+
 
 
 
